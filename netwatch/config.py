@@ -4,6 +4,8 @@ All environment variables and application defaults live here.
 Import `get_config()` wherever you need settings — never read os.environ directly.
 """
 
+from __future__ import annotations
+
 import os
 from dataclasses import dataclass
 from pathlib import Path

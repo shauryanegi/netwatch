@@ -4,6 +4,8 @@ All database access goes through this module.
 No other module should import sqlite3 directly.
 """
 
+from __future__ import annotations
+
 import csv
 import sqlite3
 from dataclasses import dataclass

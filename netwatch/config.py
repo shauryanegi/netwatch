@@ -33,6 +33,13 @@ class Config:
     groq_model: str
 
 
+def _load_api_key(value: str | None) -> str | None:
+    """Return None if the key is missing or still the placeholder value."""
+    if not value or value.startswith("your_"):
+        return None
+    return value
+
+
 def get_config() -> Config:
     """Read config from environment variables, falling back to sensible defaults."""
     db_path_str = os.getenv("NETWATCH_DB_PATH", str(Path.home() / ".netwatch" / "data.db"))
@@ -44,6 +51,6 @@ def get_config() -> Config:
         interval_minutes=int(os.getenv("NETWATCH_INTERVAL", "15")),
         isp_name=os.getenv("NETWATCH_ISP_NAME", "My ISP"),
         advertised_mbps=float(os.getenv("NETWATCH_ADVERTISED_MBPS", "100")),
-        groq_api_key=os.getenv("GROQ_API_KEY"),
+        groq_api_key=_load_api_key(os.getenv("GROQ_API_KEY")),
         groq_model=os.getenv("GROQ_MODEL", "llama3-8b-8192"),
     )

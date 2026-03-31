@@ -6,6 +6,7 @@ config, database, logger, ai, and reports into a clean CLI.
 Usage:
     netwatch log                        # Run a single speed test
     netwatch start                      # Start background daemon
+    netwatch serve                      # Launch local web dashboard
     netwatch stats [--days N]           # Show aggregate stats
     netwatch history [--limit N]        # Show recent readings table
     netwatch chart [--days N]           # Show ASCII speed chart
@@ -76,6 +77,44 @@ def log():
     except SpeedTestError as exc:
         print_error(str(exc))
         sys.exit(1)
+
+
+@main.command()
+@click.option("--port", "-p", default=8080, show_default=True, help="Port to run the web dashboard on.")
+@click.option("--no-browser", is_flag=True, default=False, help="Don't open the browser automatically.")
+def serve(port: int, no_browser: bool):
+    """Launch the local web dashboard at http://localhost:[PORT].
+
+    All data stays on your machine — the server only binds to 127.0.0.1.
+    Press Ctrl+C to stop.
+    """
+    import threading
+    import time
+    import webbrowser
+
+    import uvicorn
+
+    from netwatch.server import create_app
+
+    config = get_config()
+    app = create_app(config)
+    url = f"http://127.0.0.1:{port}"
+
+    print_info(f"Starting web dashboard at [bold cyan]{url}[/bold cyan]")
+    if config.groq_api_key:
+        print_info("AI features are [bold green]enabled[/bold green]")
+    else:
+        print_info("AI features are [bold yellow]disabled[/bold yellow] (no GROQ_API_KEY)")
+    console.print("[dim]Press Ctrl+C to stop.[/dim]\n")
+
+    if not no_browser:
+        # Give the server a moment to start before opening the browser
+        def _open():
+            time.sleep(1.2)
+            webbrowser.open(url)
+        threading.Thread(target=_open, daemon=True).start()
+
+    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
 
 
 @main.command()

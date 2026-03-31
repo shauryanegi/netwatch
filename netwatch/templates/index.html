@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>netwatch</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0f172a;
+      --surface:   #1e293b;
+      --border:    #334155;
+      --text:      #e2e8f0;
+      --muted:     #94a3b8;
+      --cyan:      #06b6d4;
+      --cyan-dim:  rgba(6,182,212,0.15);
+      --green:     #22c55e;
+      --green-dim: rgba(34,197,94,0.15);
+      --red:       #ef4444;
+      --red-dim:   rgba(239,68,68,0.15);
+      --yellow:    #eab308;
+      --purple:    #a855f7;
+      --purple-dim:rgba(168,85,247,0.15);
+      --radius:    12px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* ── NAV ── */
+    nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      height: 60px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .logo {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--cyan);
+      letter-spacing: -0.5px;
+    }
+
+    .logo span { color: var(--text); font-weight: 400; }
+
+    .nav-right { display: flex; align-items: center; gap: 12px; }
+
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: background 0.3s;
+    }
+    .status-dot.live { background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+    .status-label { color: var(--muted); font-size: 12px; }
+
+    /* ── BUTTONS ── */
+    .btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: none;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn:active { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+    .btn-primary { background: var(--cyan); color: #0f172a; }
+    .btn-ghost   { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+    .btn-ghost:hover { color: var(--text); border-color: var(--muted); opacity: 1; }
+    .btn-purple  { background: var(--purple); color: #fff; }
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+
+    /* ── MAIN LAYOUT ── */
+    main { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+    /* ── STAT CARDS ── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .stat-value {
+      font-size: 28px;
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+
+    .stat-sub { font-size: 12px; color: var(--muted); }
+
+    .cyan   { color: var(--cyan); }
+    .green  { color: var(--green); }
+    .yellow { color: var(--yellow); }
+    .red    { color: var(--red); }
+    .purple { color: var(--purple); }
+
+    /* ── CHART CARD ── */
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+
+    .chart-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      flex-wrap: gap;
+      gap: 12px;
+    }
+
+    .chart-title { font-size: 15px; font-weight: 600; }
+
+    .range-tabs { display: flex; gap: 4px; }
+
+    .range-tab {
+      padding: 4px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .range-tab.active, .range-tab:hover {
+      background: var(--cyan-dim);
+      border-color: var(--cyan);
+      color: var(--cyan);
+    }
+
+    .chart-wrap { position: relative; height: 260px; }
+
+    /* ── BOTTOM GRID ── */
+    .bottom-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    @media (max-width: 768px) {
+      .bottom-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ── TABLE ── */
+    .section-title {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .table-wrap { overflow-x: auto; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    thead th {
+      text-align: left;
+      padding: 8px 10px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border-bottom: 1px solid var(--border);
+    }
+
+    tbody tr { border-bottom: 1px solid rgba(51,65,85,0.5); }
+    tbody tr:hover { background: rgba(255,255,255,0.02); }
+
+    tbody td {
+      padding: 10px 10px;
+      color: var(--text);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .badge-green  { background: var(--green-dim);  color: var(--green);  }
+    .badge-yellow { background: rgba(234,179,8,0.15); color: var(--yellow); }
+    .badge-red    { background: var(--red-dim);    color: var(--red);    }
+
+    /* ── AI PANEL ── */
+    .ai-panel { display: flex; flex-direction: column; gap: 12px; }
+
+    .ai-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+
+    .ai-result {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      font-size: 13px;
+      line-height: 1.7;
+      color: var(--text);
+      white-space: pre-wrap;
+      max-height: 240px;
+      overflow-y: auto;
+      display: none;
+    }
+
+    .ai-result.visible { display: block; }
+
+    .ai-result.loading {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+    }
+
+    .chat-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .chat-input {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .chat-input:focus { border-color: var(--cyan); }
+    .chat-input::placeholder { color: var(--muted); }
+
+    /* ── SPINNER ── */
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid var(--border);
+      border-top-color: var(--cyan);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── EMPTY STATE ── */
+    .empty {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--muted);
+    }
+    .empty-icon { font-size: 32px; margin-bottom: 8px; }
+    .empty p { font-size: 13px; }
+
+    /* ── TOAST ── */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 18px;
+      font-size: 13px;
+      display: none;
+      z-index: 999;
+      max-width: 320px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+    #toast.show { display: flex; align-items: center; gap: 10px; }
+    #toast.success { border-color: var(--green); }
+    #toast.error   { border-color: var(--red); }
+
+    /* ── AI DISABLED BANNER ── */
+    .ai-banner {
+      background: var(--purple-dim);
+      border: 1px solid rgba(168,85,247,0.3);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .ai-banner a { color: var(--purple); text-decoration: none; }
+    .ai-banner a:hover { text-decoration: underline; }
+
+    /* ── NO DATA STATE ── */
+    .no-data-banner {
+      background: var(--cyan-dim);
+      border: 1px solid rgba(6,182,212,0.3);
+      border-radius: 8px;
+      padding: 14px 18px;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 24px;
+      display: none;
+    }
+    .no-data-banner strong { color: var(--cyan); }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="logo">net<span>watch</span></div>
+  <div class="nav-right">
+    <div class="status-dot" id="statusDot"></div>
+    <span class="status-label" id="statusLabel">Ready</span>
+    <button class="btn btn-primary" id="runBtn" onclick="runTest()">
+      Run Test
+    </button>
+  </div>
+</nav>
+
+<main>
+
+  <!-- NO DATA BANNER -->
+  <div class="no-data-banner" id="noDataBanner">
+    <strong>No speed tests yet.</strong> Click <strong>Run Test</strong> above to take your first reading, or run <code>netwatch start</code> in your terminal to begin logging automatically.
+  </div>
+
+  <!-- STAT CARDS -->
+  <div class="stats-grid">
+    <div class="card">
+      <div class="stat-label">Avg Download</div>
+      <div class="stat-value cyan" id="avgDownload">—</div>
+      <div class="stat-sub" id="downloadSub">—</div>
+    </div>
+    <div class="card">
+      <div class="stat-label">Avg Upload</div>
+      <div class="stat-value green" id="avgUpload">—</div>
+      <div class="stat-sub" id="uploadSub">—</div>
+    </div>
+    <div class="card">
+      <div class="stat-label">Avg Ping</div>
+      <div class="stat-value" id="avgPing">—</div>
+      <div class="stat-sub" id="pingSub">—</div>
+    </div>
+    <div class="card">
+      <div class="stat-label">Total Tests</div>
+      <div class="stat-value" id="totalTests">—</div>
+      <div class="stat-sub" id="thresholdSub">—</div>
+    </div>
+  </div>
+
+  <!-- CHART -->
+  <div class="chart-card">
+    <div class="chart-header">
+      <span class="chart-title">Speed Over Time</span>
+      <div class="range-tabs">
+        <button class="range-tab active" onclick="setRange(1,  this)">24h</button>
+        <button class="range-tab"        onclick="setRange(7,  this)">7d</button>
+        <button class="range-tab"        onclick="setRange(30, this)">30d</button>
+      </div>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="speedChart"></canvas>
+    </div>
+  </div>
+
+  <!-- BOTTOM GRID -->
+  <div class="bottom-grid">
+
+    <!-- RECENT TESTS -->
+    <div class="card">
+      <div class="section-title">Recent Tests</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Download</th>
+              <th>Upload</th>
+              <th>Ping</th>
+            </tr>
+          </thead>
+          <tbody id="historyBody">
+            <tr><td colspan="4"><div class="empty"><div class="empty-icon">📡</div><p>No data yet</p></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- AI PANEL -->
+    <div class="card">
+      <div class="section-title">
+        <span>AI Insights</span>
+        <span style="font-size:11px;font-weight:400;color:var(--muted)" id="aiStatus"></span>
+      </div>
+      <div class="ai-panel" id="aiPanel">
+        <!-- populated by JS -->
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+  let chart = null;
+  let currentRange = 1;
+  let appConfig = {};
+
+  // ── INIT ──────────────────────────────────────────────────
+  async function init() {
+    appConfig = await fetch('/api/config').then(r => r.json());
+    buildAiPanel();
+    await Promise.all([loadStats(), loadChart(currentRange), loadHistory()]);
+  }
+
+  // ── STATS ─────────────────────────────────────────────────
+  async function loadStats() {
+    const s = await fetch('/api/stats?days=30').then(r => r.json());
+    if (!s) {
+      document.getElementById('noDataBanner').style.display = 'block';
+      return;
+    }
+    document.getElementById('noDataBanner').style.display = 'none';
+
+    const pct = ((s.avg_download / appConfig.advertised_mbps) * 100).toFixed(0);
+    const pctColor = pct >= 80 ? 'green' : pct >= 60 ? 'yellow' : 'red';
+
+    document.getElementById('avgDownload').textContent = s.avg_download + ' Mbps';
+    document.getElementById('downloadSub').innerHTML =
+      `<span class="${pctColor}">${pct}%</span> of ${appConfig.advertised_mbps} Mbps advertised`;
+
+    document.getElementById('avgUpload').textContent = s.avg_upload + ' Mbps';
+    document.getElementById('uploadSub').textContent =
+      `Range: ${s.min_upload} – ${s.max_upload} Mbps`;
+
+    const pingColor = s.avg_ping < 50 ? '' : s.avg_ping < 100 ? 'yellow' : 'red';
+    document.getElementById('avgPing').className = 'stat-value ' + pingColor;
+    document.getElementById('avgPing').textContent = s.avg_ping + ' ms';
+    document.getElementById('pingSub').textContent = 'lower is better';
+
+    document.getElementById('totalTests').textContent = s.count;
+    document.getElementById('thresholdSub').innerHTML =
+      `<span class="${s.below_threshold_pct > 20 ? 'red' : 'green'}">${s.below_threshold_pct}%</span> below 80% threshold`;
+  }
+
+  // ── CHART ─────────────────────────────────────────────────
+  async function loadChart(days) {
+    const data = await fetch(`/api/readings?limit=500&days=${days}`).then(r => r.json());
+    const ordered = [...data].reverse();
+
+    const labels     = ordered.map(r => new Date(r.timestamp));
+    const downloads  = ordered.map(r => r.download_mbps);
+    const uploads    = ordered.map(r => r.upload_mbps);
+
+    if (chart) {
+      chart.data.labels = labels;
+      chart.data.datasets[0].data = downloads;
+      chart.data.datasets[1].data = uploads;
+      chart.update('active');
+      return;
+    }
+
+    const ctx = document.getElementById('speedChart').getContext('2d');
+    chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Download',
+            data: downloads,
+            borderColor: '#06b6d4',
+            backgroundColor: 'rgba(6,182,212,0.08)',
+            borderWidth: 2,
+            pointRadius: ordered.length < 30 ? 4 : 0,
+            pointHoverRadius: 5,
+            fill: true,
+            tension: 0.3,
+          },
+          {
+            label: 'Upload',
+            data: uploads,
+            borderColor: '#22c55e',
+            backgroundColor: 'rgba(34,197,94,0.06)',
+            borderWidth: 2,
+            pointRadius: ordered.length < 30 ? 4 : 0,
+            pointHoverRadius: 5,
+            fill: true,
+            tension: 0.3,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: {
+            labels: { color: '#94a3b8', usePointStyle: true, pointStyleWidth: 8, font: { size: 12 } }
+          },
+          tooltip: {
+            backgroundColor: '#1e293b',
+            borderColor: '#334155',
+            borderWidth: 1,
+            titleColor: '#e2e8f0',
+            bodyColor: '#94a3b8',
+            callbacks: {
+              label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y} Mbps`,
+            }
+          }
+        },
+        scales: {
+          x: {
+            type: 'time',
+            time: { tooltipFormat: 'MMM d, HH:mm' },
+            grid: { color: 'rgba(51,65,85,0.5)' },
+            ticks: { color: '#94a3b8', maxTicksLimit: 8, font: { size: 11 } },
+          },
+          y: {
+            grid: { color: 'rgba(51,65,85,0.5)' },
+            ticks: {
+              color: '#94a3b8',
+              font: { size: 11 },
+              callback: v => v + ' Mbps',
+            },
+            min: 0,
+          }
+        }
+      }
+    });
+  }
+
+  function setRange(days, btn) {
+    currentRange = days;
+    document.querySelectorAll('.range-tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    loadChart(days);
+  }
+
+  // ── HISTORY TABLE ─────────────────────────────────────────
+  async function loadHistory() {
+    const data = await fetch('/api/readings?limit=20&days=30').then(r => r.json());
+    const tbody = document.getElementById('historyBody');
+
+    if (!data.length) {
+      tbody.innerHTML = `<tr><td colspan="4"><div class="empty"><div class="empty-icon">📡</div><p>No data yet — run a speed test!</p></div></td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = data.map(r => {
+      const t = new Date(r.timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      const dlClass = r.download_mbps >= 50 ? 'badge-green' : r.download_mbps >= 20 ? 'badge-yellow' : 'badge-red';
+      const pingClass = r.ping_ms < 50 ? 'badge-green' : r.ping_ms < 100 ? 'badge-yellow' : 'badge-red';
+      return `
+        <tr>
+          <td style="color:var(--muted)">${t}</td>
+          <td><span class="badge ${dlClass}">${r.download_mbps} Mbps</span></td>
+          <td style="color:var(--green)">${r.upload_mbps} Mbps</td>
+          <td><span class="badge ${pingClass}">${r.ping_ms} ms</span></td>
+        </tr>`;
+    }).join('');
+  }
+
+  // ── RUN TEST ──────────────────────────────────────────────
+  async function runTest() {
+    const btn = document.getElementById('runBtn');
+    const dot = document.getElementById('statusDot');
+    const lbl = document.getElementById('statusLabel');
+
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner"></span> Running…`;
+    dot.className = 'status-dot live';
+    lbl.textContent = 'Running test…';
+
+    try {
+      const res = await fetch('/api/run-test', { method: 'POST' });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'Test failed');
+      }
+      const r = await res.json();
+      showToast(`↓ ${r.download_mbps} Mbps  ↑ ${r.upload_mbps} Mbps  ping ${r.ping_ms} ms`, 'success');
+      await Promise.all([loadStats(), loadChart(currentRange), loadHistory()]);
+    } catch (e) {
+      showToast(e.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = 'Run Test';
+      dot.className = 'status-dot';
+      lbl.textContent = 'Ready';
+    }
+  }
+
+  // ── AI PANEL ──────────────────────────────────────────────
+  function buildAiPanel() {
+    const panel = document.getElementById('aiPanel');
+    const statusEl = document.getElementById('aiStatus');
+
+    if (!appConfig.ai_enabled) {
+      statusEl.textContent = 'disabled';
+      panel.innerHTML = `
+        <div class="ai-banner">
+          AI insights are <strong>disabled</strong>.<br>
+          Get a free <a href="https://console.groq.com" target="_blank">Groq API key</a>
+          and add it to your <code>.env</code> file:<br>
+          <code style="color:var(--cyan)">GROQ_API_KEY=your_key_here</code>
+        </div>`;
+      return;
+    }
+
+    statusEl.textContent = 'powered by Groq';
+
+    panel.innerHTML = `
+      <div class="ai-buttons">
+        <button class="btn btn-ghost btn-sm" onclick="aiAction('summary')">📊 Weekly Summary</button>
+        <button class="btn btn-ghost btn-sm" onclick="aiAction('anomalies')">🔍 Anomalies</button>
+        <button class="btn btn-ghost btn-sm" onclick="aiAction('letter')">✉️ Complaint Letter</button>
+      </div>
+      <div class="chat-row">
+        <input class="chat-input" id="chatInput" placeholder='Ask anything — "when is my internet slowest?"' />
+        <button class="btn btn-purple btn-sm" onclick="aiChat()">Ask</button>
+      </div>
+      <div class="ai-result" id="aiResult"></div>`;
+
+    document.getElementById('chatInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') aiChat();
+    });
+  }
+
+  async function aiAction(type) {
+    const result = document.getElementById('aiResult');
+    result.className = 'ai-result visible loading';
+    result.innerHTML = `<span class="spinner"></span> Thinking…`;
+
+    try {
+      const res = await fetch(`/api/ai/${type}`);
+      if (!res.ok) throw new Error((await res.json()).detail);
+      const { result: text } = await res.json();
+      result.className = 'ai-result visible';
+      result.textContent = text;
+    } catch (e) {
+      result.className = 'ai-result visible';
+      result.style.color = 'var(--red)';
+      result.textContent = 'Error: ' + e.message;
+    }
+  }
+
+  async function aiChat() {
+    const input = document.getElementById('chatInput');
+    const question = input.value.trim();
+    if (!question) return;
+
+    const result = document.getElementById('aiResult');
+    result.className = 'ai-result visible loading';
+    result.innerHTML = `<span class="spinner"></span> Thinking…`;
+
+    try {
+      const res = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question }),
+      });
+      if (!res.ok) throw new Error((await res.json()).detail);
+      const { result: text } = await res.json();
+      result.className = 'ai-result visible';
+      result.style.color = '';
+      result.textContent = text;
+      input.value = '';
+    } catch (e) {
+      result.className = 'ai-result visible';
+      result.style.color = 'var(--red)';
+      result.textContent = 'Error: ' + e.message;
+    }
+  }
+
+  // ── TOAST ─────────────────────────────────────────────────
+  function showToast(msg, type = '') {
+    const t = document.getElementById('toast');
+    t.className = 'show ' + type;
+    t.innerHTML = (type === 'success' ? '✓ ' : type === 'error' ? '✕ ' : '') + msg;
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.className = '', 4000);
+  }
+
+  // ── KICK OFF ──────────────────────────────────────────────
+  init();
+</script>
+</body>
+</html>

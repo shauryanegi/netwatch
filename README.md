@@ -2,9 +2,9 @@
 
 > Local ISP speed logger with AI-powered insights — no account, no cloud, no bullshit.
 
+![CI](https://github.com/shauryanegi/netwatch/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-27%20passing-brightgreen)
 ![AI](https://img.shields.io/badge/AI-Groq%20%28optional%2C%20free%29-purple)
 
 ---

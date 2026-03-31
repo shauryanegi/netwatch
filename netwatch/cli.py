@@ -168,6 +168,10 @@ def ai_summary(days: int):
     config = get_config()
     init_db(config.db_path)
 
+    if not config.groq_api_key:
+        _print_ai_disabled()
+        return
+
     print_info("Analyzing your speed data with AI...")
 
     readings = get_readings(config.db_path, limit=500, days=days)
@@ -188,6 +192,10 @@ def ai_anomalies(days: int):
     config = get_config()
     init_db(config.db_path)
 
+    if not config.groq_api_key:
+        _print_ai_disabled()
+        return
+
     print_info("Running anomaly detection with AI...")
 
     readings = get_readings(config.db_path, limit=500, days=days)
@@ -206,6 +214,10 @@ def ai_letter(days: int):
     """Generate a formal ISP complaint letter with your speed data as evidence."""
     config = get_config()
     init_db(config.db_path)
+
+    if not config.groq_api_key:
+        _print_ai_disabled()
+        return
 
     print_info(f"Generating complaint letter for {config.isp_name}...")
 
@@ -236,6 +248,10 @@ def ai_chat(question: str, days: int):
     config = get_config()
     init_db(config.db_path)
 
+    if not config.groq_api_key:
+        _print_ai_disabled()
+        return
+
     print_info(f'Thinking about: "{question}"')
 
     readings = get_readings(config.db_path, limit=500, days=days)
@@ -247,3 +263,18 @@ def ai_chat(question: str, days: int):
     except AIError as exc:
         print_error(str(exc))
         sys.exit(1)
+
+
+def _print_ai_disabled() -> None:
+    """Print a friendly message when no Groq API key is configured."""
+    console.print(
+        "\n[bold yellow]AI features are disabled.[/bold yellow]\n\n"
+        "netwatch works fully without AI — use these commands anytime:\n"
+        "  [cyan]netwatch log[/cyan]      Run a speed test\n"
+        "  [cyan]netwatch stats[/cyan]    View statistics\n"
+        "  [cyan]netwatch history[/cyan]  Browse readings\n"
+        "  [cyan]netwatch chart[/cyan]    ASCII speed chart\n\n"
+        "To enable AI features, get a [bold]free[/bold] Groq API key:\n"
+        "  1. Visit [link]https://console.groq.com[/link]\n"
+        "  2. Add to your [bold].env[/bold] file:  [green]GROQ_API_KEY=your_key_here[/green]\n"
+    )

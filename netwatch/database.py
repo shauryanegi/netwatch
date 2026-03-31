@@ -4,6 +4,7 @@ All database access goes through this module.
 No other module should import sqlite3 directly.
 """
 
+import csv
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -180,6 +181,38 @@ def get_stats(db_path: Path, days: Optional[int] = None, advertised_mbps: float 
         max_upload=round(row["max_upload"], 2),
         below_threshold_pct=round(below_pct, 1),
     )
+
+
+def export_csv(db_path: Path, output_path: Path, days: Optional[int] = None) -> int:
+    """Export speed readings to a CSV file.
+
+    Args:
+        db_path: Path to the SQLite DB.
+        output_path: Destination CSV file path.
+        days: If set, only export readings from the last N days.
+
+    Returns:
+        Number of rows written.
+    """
+    readings = get_readings(db_path, limit=100_000, days=days)
+
+    with open(output_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            "timestamp_utc", "timestamp_local",
+            "download_mbps", "upload_mbps", "ping_ms",
+            "server_name", "server_country", "isp",
+        ])
+        for r in reversed(readings):  # oldest first — natural order for spreadsheets
+            local_ts = r.timestamp.astimezone().strftime("%Y-%m-%d %H:%M:%S")
+            utc_ts   = r.timestamp.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+            writer.writerow([
+                utc_ts, local_ts,
+                r.download_mbps, r.upload_mbps, r.ping_ms,
+                r.server_name, r.server_country, r.isp,
+            ])
+
+    return len(readings)
 
 
 def _row_to_reading(row: sqlite3.Row) -> SpeedReading:

@@ -24,7 +24,7 @@ from rich.console import Console
 from netwatch import __version__
 from netwatch.ai import AIError, chat, complaint_letter, detect_anomalies, weekly_summary
 from netwatch.config import get_config
-from netwatch.database import get_readings, get_stats, init_db
+from netwatch.database import export_csv, get_readings, get_stats, init_db
 from netwatch.logger import SpeedTestError, log_speed, start_daemon
 from netwatch.reports import (
     print_ai_result,
@@ -138,6 +138,37 @@ def start():
         start_daemon(config, on_result=on_result, on_error=on_error)
     except KeyboardInterrupt:
         console.print("\n[cyan]Daemon stopped.[/cyan]")
+
+
+@main.command()
+@click.argument("output", default="netwatch-export.csv")
+@click.option("--days", "-d", default=None, type=int, help="Only export readings from the last N days.")
+def export(output: str, days):
+    """Export speed data to a CSV file.
+
+    \b
+    Examples:
+      netwatch export                        # exports to netwatch-export.csv
+      netwatch export my-speeds.csv
+      netwatch export --days 30 report.csv
+    """
+    from pathlib import Path
+    config = get_config()
+    init_db(config.db_path)
+
+    output_path = Path(output)
+    print_info(f"Exporting data to [bold]{output_path}[/bold]…")
+
+    count = export_csv(config.db_path, output_path, days=days)
+
+    if count == 0:
+        print_info("No data to export. Run [bold]netwatch log[/bold] first.")
+        return
+
+    print_success(f"Exported {count} readings to [bold]{output_path.resolve()}[/bold]")
+    console.print(
+        f"[dim]Open in Excel, Google Sheets, or attach to an ISP support ticket.[/dim]"
+    )
 
 
 @main.command()
